@@ -20,7 +20,7 @@ import (
 type Options struct {
 	FileName   string `short:"f" long:"file" description:"the relative path from the repo base of the file to track down"`
 	LineNumber int64  `short:"l" long:"line" description:"the line number of the line in that file"`
-	Date       string `short:"d" long:"date" description:"the date the file/line were referenced"`
+	Date       string `short:"d" long:"date" description:"the date the file/line were referenced in the format of MM/DD/YYYY"`
 	Path       string `short:"p" long:"path" description:"path to the repo"`
 }
 
@@ -29,9 +29,11 @@ var arguments Options = Options{
 }
 
 func main() {
-	_, err := flags.ParseArgs(&arguments, os.Args)
+	parser := flags.NewParser(&arguments, flags.Default)
+	_, err := parser.Parse()
 	if err != nil {
 		fmt.Println("Error: ", err)
+		parser.WriteHelp(os.Stdin)
 		os.Exit(1)
 	}
 
@@ -43,7 +45,8 @@ func main() {
 	lineNumber := arguments.LineNumber
 	date, err := time.Parse("01/02/2006", strings.TrimSpace(arguments.Date))
 	if err != nil {
-		fmt.Println("Error: ", err)
+		fmt.Println("Error: Issue parsing the date. Please check that it is well formatted and valid")
+		parser.WriteHelp(os.Stdin)
 		os.Exit(1)
 	}
 
