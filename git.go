@@ -10,9 +10,10 @@ import (
 )
 
 type GitDiffResult struct {
-	commitId string
-	diff     string //[]*gitdiff.File
-	err      error
+	commitId     string
+	lastCommitId string
+	diff         string //[]*gitdiff.File
+	err          error
 }
 
 var mutex sync.Mutex
@@ -36,7 +37,7 @@ func getFileAtCommit(repoPath string, commitId string, fileName string) (string,
 func getCommitBefore(path string, commitId string, date time.Time) (string, error) {
 	// mutex.Lock()
 	// defer mutex.Unlock()
-	cmd := exec.Command("git", "rev-list", "-1", commitId)
+	cmd := exec.Command("git", "rev-list", "-1", fmt.Sprintf("--before=\"%s\"", date.Format("Jan 02 2006")), commitId)
 	cmd.Dir = path
 	var cmdOut, cmdErr bytes.Buffer
 	cmd.Stdout = &cmdOut
@@ -68,6 +69,7 @@ func getDiffForCommitAsync(repoPath string, previousCommitId string, commitId st
 	diff, err := getCommitContents(repoPath, previousCommitId, commitId)
 	result := new(GitDiffResult)
 	result.commitId = commitId
+	result.lastCommitId = previousCommitId
 	result.diff = diff
 	result.err = err
 	fmt.Println(i)

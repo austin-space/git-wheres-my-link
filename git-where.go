@@ -77,8 +77,10 @@ func main() {
 
 	commitIds := make([]string, len(commits)+1)
 	commitIds[0] = baseCommit
+	fmt.Println(baseCommit)
 	for index, commit := range commits {
 		commitIds[index+1] = commit.Hash.Long
+		fmt.Println(commit.Hash.Long)
 	}
 
 	if !arguments.Quiet {
@@ -103,12 +105,15 @@ func main() {
 				errorLog.Println("Error: ", err)
 				os.Exit(1)
 			}
-			files, _, _ := gitdiff.Parse(strings.NewReader(result.diff))
+			files, _, err := gitdiff.Parse(strings.NewReader(result.diff))
+			if result.err != nil {
+				errorLog.Println("Error: ", err)
+				os.Exit(1)
+			}
 			for _, commitFile := range files {
 
 				// TODO: we really should fork here instead of just choosing the original
 				if commitFile.OldName == file && !commitFile.IsCopy {
-
 					originalLineNumber := lineNumber
 					for _, fragment := range commitFile.TextFragments {
 						amountToMove, err := processFragment(fragment, originalLineNumber)
@@ -119,6 +124,7 @@ func main() {
 							errorLog.Println(err)
 							errorLog.Printf("trail went cold at commit %s", result.commitId)
 							errorLog.Printf("%s, %d", file, originalLineNumber)
+							errorLog.Println(result.lastCommitId)
 							os.Exit(1)
 						}
 					}
