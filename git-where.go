@@ -77,15 +77,13 @@ func main() {
 
 	commitIds := make([]string, len(commits)+1)
 	commitIds[0] = baseCommit
-	fmt.Println(baseCommit)
 	for index, commit := range commits {
 		commitIds[index+1] = commit.Hash.Long
-		fmt.Println(commit.Hash.Long)
 	}
 
 	if !arguments.Quiet {
 		fmt.Printf("Working off of base commit %s\n\n", baseCommit)
-		fileString, err := getFileAtCommit(arguments.Path, "HEAD", file)
+		fileString, err := getFileAtCommit(arguments.Path, baseCommit, file)
 		if err != nil {
 			errorLog.Println("Error: ", err)
 			os.Exit(1)
@@ -105,12 +103,7 @@ func main() {
 				errorLog.Println("Error: ", err)
 				os.Exit(1)
 			}
-			files, _, err := gitdiff.Parse(strings.NewReader(result.diff))
-			if result.err != nil {
-				errorLog.Println("Error: ", err)
-				os.Exit(1)
-			}
-			for _, commitFile := range files {
+			for _, commitFile := range result.diff {
 
 				// TODO: we really should fork here instead of just choosing the original
 				if commitFile.OldName == file && !commitFile.IsCopy {
@@ -124,16 +117,15 @@ func main() {
 							errorLog.Println(err)
 							errorLog.Printf("trail went cold at commit %s", result.commitId)
 							errorLog.Printf("%s, %d", file, originalLineNumber)
-							errorLog.Println(result.lastCommitId)
 							os.Exit(1)
 						}
 					}
-					//fmt.Printf("%s changed in commit %s, new line number %d\n", file, commit.Hash.Long, lineNumber)
 					if commitFile.OldName != commitFile.NewName {
 						file = commitFile.NewName
 					}
 				}
 			}
+
 		case <-time.After(30 * time.Second):
 			errorLog.Println("Timeout when processing diffs")
 			os.Exit(1)
@@ -172,29 +164,30 @@ func main() {
 
 // return the amount that this fragment moves the original line
 func processFragment(fragment *gitdiff.TextFragment, originalLineNumber int64) (int64, error) {
-
 	if fragment.OldPosition <= int64(originalLineNumber) {
-		if fragment.OldPosition+fragment.LinesDeleted >= int64(originalLineNumber) {
-			// TODO: track down if the line is recreated elsewhere
-			errorLog.Printf("fragment %s", fragment.Header())
-			return 0, fmt.Errorf("line has been deleted")
-		}
+		currentOriginalLineNumber := fragment.OldPosition
+		var netDiff int64 = 0
+		for _, line := range fragment.Lines {
+			if currentOriginalLineNumber > originalLineNumber {
+				return netDiff, nil
+			}
 
-		return fragment.NewLines - fragment.OldLines, nil
+			if line.Op == gitdiff.OpAdd {
+				netDiff += 1
+			} else {
+				if line.Op == gitdiff.OpDelete {
+					if currentOriginalLineNumber == originalLineNumber {
+						// TODO: track down if the line is recreated elsewhere
+						errorLog.Printf("fragment %s", fragment.Header())
+						return 0, fmt.Errorf("line has been deleted")
+					}
+					netDiff -= 1
+				}
+				currentOriginalLineNumber += 1
+			}
+
+		}
+		return netDiff, nil
 	}
 	return 0, nil
-}
-
-func min(x, y int64) int64 {
-	if x < y {
-		return x
-	}
-	return y
-}
-
-func max(x, y int64) int64 {
-	if x > y {
-		return x
-	}
-	return y
 }

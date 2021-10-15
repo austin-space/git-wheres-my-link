@@ -5,22 +5,19 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/bluekeyes/go-gitdiff/gitdiff"
 )
 
 type GitDiffResult struct {
 	commitId     string
 	lastCommitId string
-	diff         string //[]*gitdiff.File
+	diff         []*gitdiff.File
 	err          error
 }
 
-var mutex sync.Mutex
-
 func getFileAtCommit(repoPath string, commitId string, fileName string) (string, error) {
-	// mutex.Lock()
-	// defer mutex.Unlock()
 	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", commitId, fileName))
 	cmd.Dir = repoPath
 	var cmdOut, cmdErr bytes.Buffer
@@ -29,15 +26,13 @@ func getFileAtCommit(repoPath string, commitId string, fileName string) (string,
 
 	err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf(cmdErr.String())
+		return "", fmt.Errorf("error getting the file at commit %s: %s", commitId, cmdErr.String())
 	}
 	return cmdOut.String(), nil
 }
 
 func getCommitBefore(path string, commitId string, date time.Time) (string, error) {
-	// mutex.Lock()
-	// defer mutex.Unlock()
-	cmd := exec.Command("git", "rev-list", "-1", fmt.Sprintf("--before=\"%s\"", date.Format("Jan 02 2006")), commitId)
+	cmd := exec.Command("git", "rev-parse", fmt.Sprintf("%s^", commitId))
 	cmd.Dir = path
 	var cmdOut, cmdErr bytes.Buffer
 	cmd.Stdout = &cmdOut
@@ -64,20 +59,17 @@ func getDiffsForCommits(repoPath string, commitIds []string) []chan *GitDiffResu
 }
 
 func getDiffForCommitAsync(repoPath string, previousCommitId string, commitId string, resultChannel chan *GitDiffResult, i int) {
-	// mutex.Lock()
-	// defer mutex.Unlock()
 	diff, err := getCommitContents(repoPath, previousCommitId, commitId)
 	result := new(GitDiffResult)
 	result.commitId = commitId
 	result.lastCommitId = previousCommitId
 	result.diff = diff
 	result.err = err
-	fmt.Println(i)
 	resultChannel <- result
 	close(resultChannel)
 }
 
-func getCommitContents(repoPath string, commitId string, previousCommitId string) (string, error) {
+func getCommitContents(repoPath string, previousCommitId string, commitId string) ([]*gitdiff.File, error) {
 	cmd := exec.Command("git", "diff", previousCommitId, commitId)
 	cmd.Dir = arguments.Path
 	var cmdOut, cmdErr bytes.Buffer
@@ -86,13 +78,13 @@ func getCommitContents(repoPath string, commitId string, previousCommitId string
 
 	err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf(cmdErr.String())
+
+		return nil, fmt.Errorf("error getting git diff: %s", cmdErr.String())
 	}
 
-	return cmdOut.String(), nil
-	// files, _, err := gitdiff.Parse(&cmdOut)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// return files, nil
+	files, _, err := gitdiff.Parse(&cmdOut)
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }
