@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/alecthomas/chroma/formatters"
@@ -35,7 +35,7 @@ func showFileAtLineNumber(fileName string, fileString string, lineNumber int64) 
 	}
 
 	var buffer bytes.Buffer
-	formatters.TTY.Format(bufio.NewWriter(&buffer), style, iteratator)
+	formatters.TTY.Format(io.Writer(&buffer), style, iteratator)
 
 	lines := strings.Split(buffer.String(), "\n")
 	startingLine := max(0, lineNumber-6)
